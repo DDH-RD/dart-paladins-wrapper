@@ -6,7 +6,7 @@ void main() {
     .setAuthKey("1234")
     .build();
 
-  paladins.createSession().then((session) {
-    print(session.sessionId);
+  paladins.getPlayer("Luziferium").then((value) => {
+    print(value)
   });
 }
