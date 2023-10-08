@@ -1,4 +1,4 @@
-import '../lib/paladins.dart';
+import '../lib/src/paladins.dart';
 
 void main() {
   Paladins paladins = PaladinsBuilder()

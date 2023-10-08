@@ -8,6 +8,7 @@ class Endpoint {
     return BASE_URL + endpoint;
   }
 
+  static const TEST_SESSION = Endpoint("testsessionJson");
   static const SESSION = Endpoint("createsessionJson");
   static const PLAYER = Endpoint("getplayerJson");
 }

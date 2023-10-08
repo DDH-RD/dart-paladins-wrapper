@@ -1,5 +1,3 @@
-import 'package:dart_paladins_wrapper/platform.dart';
-
 import 'session.dart';
 import 'session_cache.dart';
 import 'endpoint.dart';
@@ -8,6 +6,7 @@ import 'player.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
@@ -20,7 +19,9 @@ class Paladins {
   Paladins._({required this.devId, required this.authKey});
 
   factory Paladins(PaladinsBuilder builder) {
-    return Paladins._(devId: builder.devId, authKey: builder.authKey);
+    Paladins paladins = Paladins._(devId: builder.devId, authKey: builder.authKey);
+    paladins.scheduleSessionValidator(10*60*1000); // 10 minutes
+    return paladins;
   }
 
   Future<List<Player>> getPlayer(String name) async {
@@ -34,11 +35,34 @@ class Paladins {
     return players;
   }
 
+  Timer scheduleSessionValidator([int milliseconds = 10000]) =>
+    Timer.periodic(Duration(milliseconds: milliseconds), (Timer t) => _getAndTestLatestSession());
+
+  Future<Session> _getAndTestLatestSession() async {
+    if (sessionCache.hasSessions()) {
+      String sessionId = sessionCache.getLatestSession();
+      if (!sessionCache.isSessionExpired(sessionId)) {
+        Session session = Session(sessionId: sessionId);
+        http.Response response = await _requestEndpoint(Endpoint.TEST_SESSION, session, []);
+        if(response.statusCode == 200) {
+          return session;
+        }
+        sessionCache.removeSession(sessionId);
+      } else {
+        sessionCache.removeSession(sessionId);
+      }
+    }
+
+    return await _requestNewSession();
+  }
+
   Future<Session> _getAndValidateLatestSession() async {
     if (sessionCache.hasSessions()) {
       String sessionId = sessionCache.getLatestSession();
       if (!sessionCache.isSessionExpired(sessionId)) {
         return Session(sessionId: sessionId);
+      } else {
+        sessionCache.removeSession(sessionId);
       }
     }
 
@@ -54,15 +78,19 @@ class Paladins {
   }
 
   Future<http.Response> _request(String url) async {
-    return await http.get(Uri.parse(url), headers: {
+    print("Request -> $url");
+
+    http.Response response = await http.get(Uri.parse(url), headers: {
       "Accept": "application/json",
       "Content-Type": "application/json"
     });
+
+    print("Response -> ${response.statusCode}");
+    return response;
   }
 
   Future<dynamic> _requestSession() async {
     String url = _buildSessionUrl();
-    print("Request -> $url");
 
     http.Response response = await _request(url);
     return jsonDecode(response.body);
@@ -70,7 +98,6 @@ class Paladins {
 
   Future<dynamic> _requestEndpoint(Endpoint endpoint, Session session, List<String> args) async {
     String url = _buildUrl(endpoint, session, args);
-    print("Request -> $url");
 
     http.Response response = await _request(url);
     return jsonDecode(response.body);
